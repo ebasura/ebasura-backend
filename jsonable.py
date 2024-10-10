@@ -6,7 +6,6 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error
 import numpy as np
 from app.engine import db
 
-# Step 1: Query data from `bin_fill_levels`
 query = """
     SELECT bin_fill_levels.*, waste_bins.bin_name, waste_type.name AS waste_type_name 
     FROM bin_fill_levels 
@@ -24,9 +23,6 @@ df['fill_level'] = pd.to_numeric(df['fill_level'])
 
 # Step 3: Forecasting fill levels for the next 48 hours (8am to 4pm) and accuracy check
 forecast_results = []
-accuracy_results = []
-
-# Number of working hours to forecast (from 8 AM to 4 PM)
 hours_to_forecast = 24
 working_hours = list(range(8, 17, 4))  # 8 AM to 4 PM (inclusive)
 
@@ -52,6 +48,7 @@ for (bin_id, waste_type), bin_data in df.groupby(['bin_id', 'waste_type_name']):
 
     # Step 4: Forecast fill levels for the next 48 hours (only 8 AM to 4 PM)
     last_timestamp = bin_data['timestamp'].max()
+    bin_forecast = []
 
     for day in range(1, (hours_to_forecast // len(working_hours)) + 1):
         for hour in working_hours:
@@ -62,36 +59,22 @@ for (bin_id, waste_type), bin_data in df.groupby(['bin_id', 'waste_type_name']):
             predicted_fill = model.predict(np.array([[future_seconds]]))[0]
 
             # Store the forecast results with forecast day and time
-            forecast_results.append({
-                'bin_name': bin_name,
-                'waste_type': waste_type,
-                'forecast_day': future_time.date(),
-                'forecast_time': future_time.strftime('%H:%M:%S'),  # Add time in HH:MM:SS format
-                'predicted_fill_level': min(predicted_fill, 100)  # Cap fill level at 100%
+            bin_forecast.append({
+                'date': future_time.strftime('%Y-%m-%d'),
+                'time': future_time.strftime('%I:%M %p'),  # Format to HH:MM AM/PM
+                'predicted_level': min(predicted_fill, 100)  # Cap fill level at 100%
             })
 
-    # Step 5: Accuracy Evaluation - Compare predictions with actual data (test set)
-    actual_fill_levels = test_data['fill_level'].values
-    predicted_fill_levels = model.predict(time_numeric[-hours_to_forecast:]).flatten()
-
-    # Calculate MAE and RMSE
-    mae = mean_absolute_error(actual_fill_levels, predicted_fill_levels)
-    rmse = np.sqrt(mean_squared_error(actual_fill_levels, predicted_fill_levels))
-
-    # Store accuracy results
-    accuracy_results.append({
+    # Add forecast data to the overall results
+    forecast_results.append({
         'bin_name': bin_name,
         'waste_type': waste_type,
-        'mae': mae,
-        'rmse': rmse
+        'forecast': bin_forecast
     })
 
-# Step 6: Display forecast results and accuracy metrics
-forecast_df = pd.DataFrame(forecast_results)
-accuracy_df = pd.DataFrame(accuracy_results)
+# Step 5: Convert the forecast results to JSON format
+forecast_json = json.dumps(forecast_results, indent=4)
 
-print("Forecast Results:")
-print(forecast_df)
+# Step 6: Return or print the JSON
+print(forecast_json)
 
-print("\nAccuracy Results (MAE and RMSE):")
-print(accuracy_df)
