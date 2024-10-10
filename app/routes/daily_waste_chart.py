@@ -92,12 +92,12 @@ def create_dash_app(server, pathname, bin_id):
 
 
 def cas_dash(server):
-    return create_dash_app(server, '/daily-waste/cas/', bin_id=1)
+    return create_dash_app(server, '/daily-waste/1/', bin_id=1)
 
 
 def cte_dash(server):
-    return create_dash_app(server, '/daily-waste/cte/', bin_id=2)
+    return create_dash_app(server, '/daily-waste/2/', bin_id=2)
 
 
 def cbme_dash(server):
-    return create_dash_app(server, '/daily-waste/cbme/', bin_id=3)
+    return create_dash_app(server, '/daily-waste/3/', bin_id=3)
