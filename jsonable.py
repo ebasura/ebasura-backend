@@ -72,9 +72,3 @@ for (bin_id, waste_type), bin_data in df.groupby(['bin_id', 'waste_type_name']):
         'forecast': bin_forecast
     })
 
-# Step 5: Convert the forecast results to JSON format
-forecast_json = json.dumps(forecast_results, indent=4)
-
-# Step 6: Return or print the JSON
-print(forecast_json)
-
