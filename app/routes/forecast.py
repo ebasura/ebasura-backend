@@ -1,8 +1,26 @@
-from datetime import timedelta
+import os
+import pickle
+import time
+from datetime import timedelta, datetime
 import pandas as pd
 import numpy as np
 from statsmodels.tsa.statespace.sarimax import SARIMAX
 from app.engine import db
+
+
+def cache_model(model, model_filename, last_trained_time):
+    # Save the model and the last trained time to disk using pickle
+    with open(model_filename, 'wb') as file:
+        pickle.dump({'model': model, 'last_trained_time': last_trained_time}, file)
+
+
+def load_cached_model(model_filename):
+    # Load the model and last trained time from disk if it exists
+    if os.path.exists(model_filename):
+        with open(model_filename, 'rb') as file:
+            cached_data = pickle.load(file)
+            return cached_data['model'], cached_data['last_trained_time']
+    return None, None
 
 
 def two_day_school_hours():
@@ -26,6 +44,10 @@ def two_day_school_hours():
     hours_to_forecast = 48
     working_hours = list(range(8, 17, 4))  # 8 AM to 4 PM (inclusive)
 
+    # Directory to store cached models
+    cache_dir = 'model_cache'
+    os.makedirs(cache_dir, exist_ok=True)
+
     # Group by each bin_id and waste_type_name to model fill levels independently
     for (bin_id, waste_type), bin_data in df.groupby(['bin_id', 'waste_type_name']):
 
@@ -38,10 +60,21 @@ def two_day_school_hours():
         # Extract the time series data (fill_level over time)
         time_series_data = bin_data.set_index('timestamp')['fill_level']
 
-        # Step 4: Fit a SARIMAX model on the time series data
-        # Using SARIMAX with seasonal_order (p,d,q)(P,D,Q,s), where s is the seasonal period (24 for daily seasonality)
-        model = SARIMAX(time_series_data, order=(1, 1, 1), seasonal_order=(1, 1, 1, 24))
-        model_fit = model.fit(disp=False)
+        # Step 4: Cache handling with 24-hour retraining
+        # Define a unique filename for the cached model
+        model_filename = f'{cache_dir}/sarimax_model_bin_{bin_id}_waste_{waste_type}.pkl'
+
+        # Try to load the cached model and its last trained time
+        model_fit, last_trained_time = load_cached_model(model_filename)
+
+        # If no cached model exists or it needs to be retrained (after 24 hours)
+        if model_fit is None or (datetime.now() - last_trained_time).total_seconds() > 86400:
+            # Train the SARIMAX model
+            model = SARIMAX(time_series_data, order=(1, 1, 1), seasonal_order=(1, 1, 1, 24))
+            model_fit = model.fit(disp=False)
+
+            # Cache the trained model to disk, along with the current timestamp
+            cache_model(model_fit, model_filename, datetime.now())
 
         # Forecast the next 48 hours
         forecast = model_fit.get_forecast(steps=hours_to_forecast)
