@@ -7,7 +7,6 @@ import numpy as np
 from statsmodels.tsa.statespace.sarimax import SARIMAX
 from app.engine import db
 
-
 def cache_model(model, model_filename, last_trained_time):
     # Save the model and the last trained time to disk using pickle
     with open(model_filename, 'wb') as file:
