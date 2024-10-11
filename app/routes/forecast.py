@@ -1,9 +1,7 @@
-from datetime import timedelta, time
-import json
+from datetime import timedelta
 import pandas as pd
-from sklearn.linear_model import LinearRegression
-from sklearn.metrics import mean_absolute_error, mean_squared_error
 import numpy as np
+from statsmodels.tsa.statespace.sarimax import SARIMAX
 from app.engine import db
 
 
@@ -37,36 +35,38 @@ def two_day_school_hours():
         # Sort by timestamp
         bin_data = bin_data.sort_values(by='timestamp')
 
-        # Convert timestamps to numeric format (time in seconds)
-        time_numeric = (bin_data['timestamp'] - bin_data['timestamp'].min()).dt.total_seconds().values.reshape(-1, 1)
+        # Extract the time series data (fill_level over time)
+        time_series_data = bin_data.set_index('timestamp')['fill_level']
 
-        # Split data into training and testing sets (last 48 hours for testing)
-        train_data = bin_data[:-hours_to_forecast]  # Use all but the last 48 hours for training
-        test_data = bin_data[-hours_to_forecast:]  # Use the last 48 hours for testing
+        # Step 4: Fit a SARIMAX model on the time series data
+        # Using SARIMAX with seasonal_order (p,d,q)(P,D,Q,s), where s is the seasonal period (24 for daily seasonality)
+        model = SARIMAX(time_series_data, order=(1, 1, 1), seasonal_order=(1, 1, 1, 24))
+        model_fit = model.fit(disp=False)
 
-        # Fit linear regression model on training data
-        model = LinearRegression()
-        model.fit(time_numeric[:-hours_to_forecast], train_data['fill_level'])
+        # Forecast the next 48 hours
+        forecast = model_fit.get_forecast(steps=hours_to_forecast)
+        forecast_values = forecast.predicted_mean
 
-        # Step 4: Forecast fill levels for the next 48 hours (only 8 AM to 4 PM)
+        # Step 5: Create a forecast for working hours (8 AM to 4 PM)
         last_timestamp = bin_data['timestamp'].max()
-
-        # Initialize the bin_forecast list for this bin and waste type
         bin_forecast = []
 
         for day in range(1, (hours_to_forecast // len(working_hours)) + 1):
             for hour in working_hours:
                 future_time = last_timestamp + timedelta(days=day, hours=hour - last_timestamp.hour)
-                future_seconds = (future_time - bin_data['timestamp'].min()).total_seconds()
 
-                # Predict fill level for the future time
-                predicted_fill = model.predict(np.array([[future_seconds]]))[0]
+                # Get the forecast value for the corresponding time
+                future_fill_level = forecast_values[
+                    day * len(working_hours) - len(working_hours) + working_hours.index(hour)]
 
-                # Store the forecast results with forecast day and time
+                # Cap the predicted fill level between 0 and 100
+                future_fill_level = min(max(future_fill_level, 0), 100)
+
+                # Store the forecast result with the date and time
                 bin_forecast.append({
                     'date': future_time.strftime('%Y-%m-%d'),
                     'time': future_time.strftime('%I:%M %p'),  # Format to HH:MM AM/PM
-                    'predicted_level': min(predicted_fill, 100)  # Cap fill level at 100%
+                    'predicted_level': future_fill_level
                 })
 
         # Append forecast results for this bin and waste type
@@ -77,4 +77,3 @@ def two_day_school_hours():
         })
 
     return forecast_results
-

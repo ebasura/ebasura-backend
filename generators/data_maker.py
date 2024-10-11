@@ -5,30 +5,33 @@ from datetime import datetime, timedelta
 # Constants
 bin_names = [1, 2, 3]
 waste_types = [1, 2]
-days = 30  # Simulate 30 days of data
+days = 7  # Simulate 7 days of data
 time_intervals_per_day = 24  # Hourly data
 
 
-# Function to generate synthetic data
+# Function to generate synthetic data with random daily fill fluctuations
 def generate_synthetic_data():
     data = []
-    start_date = datetime.now() - timedelta(days=days)  # 30 days ago
+    start_date = datetime.now() - timedelta(days=days)  # Start from a number of days ago
     time_interval = timedelta(hours=1)  # Hourly data
 
     for bin_name in bin_names:
         for waste_type in waste_types:
             for day in range(days):
+                daily_fill_level = np.random.randint(5, 80)  # Random fill level at the start of the day
+                reset_probability = np.random.random()  # Random chance to reset the bin (simulating emptying)
+                if reset_probability > 0.7:  # 30% chance that the bin gets emptied overnight
+                    daily_fill_level = np.random.randint(5, 20)  # Lower fill level for the new day
+
                 for hour in range(time_intervals_per_day):
                     timestamp = start_date + timedelta(days=day, hours=hour)
-                    fill_level = np.random.randint(10, 90) + np.random.random()  # Random fill level between 10 and 90
-                    # Simulating fill level increase over time
-                    if waste_type == 2:
-                        fill_level += np.random.normal(loc=0.2, scale=0.1) * hour
-                    else:
-                        fill_level += np.random.normal(loc=0.15, scale=0.05) * hour
 
-                    # Ensure fill level is capped at 100
-                    fill_level = min(fill_level, 100)
+                    # Gradually increase the fill level over the course of the day with some randomness
+                    fill_increase = np.random.normal(loc=2, scale=1)  # Average increase per hour
+                    daily_fill_level += fill_increase
+
+                    # Ensure fill level is capped at 100 and a minimum of 0
+                    fill_level = max(min(daily_fill_level, 100), 0)
 
                     data.append({
                         'bin_name': bin_name,
@@ -40,7 +43,7 @@ def generate_synthetic_data():
     return pd.DataFrame(data)
 
 
-# Generate synthetic data
+# Generate synthetic data with daily random fluctuations
 df = generate_synthetic_data()
 
 
@@ -60,7 +63,7 @@ def generate_sql_insert_queries(df):
 sql_queries = generate_sql_insert_queries(df)
 
 # Save SQL insert queries to a .sql file
-with open('../bin_fill_levels_data.sql', 'w') as f:
+with open('bin_fill_levels_data.sql', 'w') as f:
     for query in sql_queries:
         f.write(query + "\n")
 
