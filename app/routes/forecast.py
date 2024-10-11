@@ -6,6 +6,7 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error
 import numpy as np
 from app.engine import db
 
+
 def two_day_school_hours():
     query = """
         SELECT bin_fill_levels.*, waste_bins.bin_name, waste_type.name AS waste_type_name 
@@ -24,7 +25,7 @@ def two_day_school_hours():
 
     # Step 3: Forecasting fill levels for the next 48 hours (8am to 4pm) and accuracy check
     forecast_results = []
-    hours_to_forecast = 12
+    hours_to_forecast = 48
     working_hours = list(range(8, 17, 4))  # 8 AM to 4 PM (inclusive)
 
     # Group by each bin_id and waste_type_name to model fill levels independently
@@ -41,7 +42,7 @@ def two_day_school_hours():
 
         # Split data into training and testing sets (last 48 hours for testing)
         train_data = bin_data[:-hours_to_forecast]  # Use all but the last 48 hours for training
-        test_data = bin_data[-hours_to_forecast:]   # Use the last 48 hours for testing
+        test_data = bin_data[-hours_to_forecast:]  # Use the last 48 hours for testing
 
         # Fit linear regression model on training data
         model = LinearRegression()
@@ -49,6 +50,8 @@ def two_day_school_hours():
 
         # Step 4: Forecast fill levels for the next 48 hours (only 8 AM to 4 PM)
         last_timestamp = bin_data['timestamp'].max()
+
+        # Initialize the bin_forecast list for this bin and waste type
         bin_forecast = []
 
         for day in range(1, (hours_to_forecast // len(working_hours)) + 1):
@@ -66,11 +69,12 @@ def two_day_school_hours():
                     'predicted_level': min(predicted_fill, 100)  # Cap fill level at 100%
                 })
 
-            forecast_results.append({
+        # Append forecast results for this bin and waste type
+        forecast_results.append({
             'bin_name': bin_name,
             'waste_type': waste_type,
             'forecast': bin_forecast
         })
-        
+
     return forecast_results
 
