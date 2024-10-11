@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 # Constants
 bin_names = [1, 2, 3]
 waste_types = [1, 2]
-days = 7  # Simulate 7 days of data
+days = 30  # Simulate 7 days of data
 time_intervals_per_day = 24  # Hourly data
 
 

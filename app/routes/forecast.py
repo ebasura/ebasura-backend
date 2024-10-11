@@ -4,13 +4,17 @@ import time
 from datetime import timedelta, datetime
 import pandas as pd
 import numpy as np
-from statsmodels.tsa.statespace.sarimax import SARIMAX
+from xgboost import XGBRegressor
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import mean_absolute_error, mean_squared_error, mean_absolute_percentage_error
 from app.engine import db
+from sklearn.model_selection import GridSearchCV
+
 
 def cache_model(model, model_filename, last_trained_time):
     # Save the model and the last trained time to disk using pickle
     with open(model_filename, 'wb') as file:
-        pickle.dump({'model': model, 'last_trained_time': last_trained_time}, file)
+        pickle.dump({'model': model, 'last_trained_time': last_trained_time}, file, protocol=pickle.HIGHEST_PROTOCOL)
 
 
 def load_cached_model(model_filename):
@@ -38,6 +42,13 @@ def two_day_school_hours():
     df['timestamp'] = pd.to_datetime(df['timestamp'])
     df['fill_level'] = pd.to_numeric(df['fill_level'])
 
+    # Feature engineering: create time-based features
+    df['hour'] = df['timestamp'].dt.hour
+    df['day_of_week'] = df['timestamp'].dt.dayofweek
+    df['day_of_month'] = df['timestamp'].dt.day
+    df['month'] = df['timestamp'].dt.month
+    df['lag_1'] = df['fill_level'].shift(1).fillna(0)  # Adding a lag feature
+
     # Step 3: Forecasting fill levels for the next 48 hours (8am to 4pm) and accuracy check
     forecast_results = []
     hours_to_forecast = 48
@@ -49,7 +60,6 @@ def two_day_school_hours():
 
     # Group by each bin_id and waste_type_name to model fill levels independently
     for (bin_id, waste_type), bin_data in df.groupby(['bin_id', 'waste_type_name']):
-
         # Extract bin_name and waste_type_name
         bin_name = bin_data['bin_name'].iloc[0]
 
@@ -57,49 +67,73 @@ def two_day_school_hours():
         bin_data = bin_data.sort_values(by='timestamp')
 
         # Extract the time series data (fill_level over time)
-        time_series_data = bin_data.set_index('timestamp')['fill_level']
+        X = bin_data[['hour', 'day_of_week', 'day_of_month', 'month', 'lag_1']]
+        y = bin_data['fill_level']
+
+        # Split the data into training and testing sets (80% train, 20% test)
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, shuffle=False)
 
         # Step 4: Cache handling with 24-hour retraining
         # Define a unique filename for the cached model
-        model_filename = f'{cache_dir}/sarimax_model_bin_{bin_id}_waste_{waste_type}.pkl'
+        model_filename = f'{cache_dir}/xgboost_model_bin_{bin_id}_waste_{waste_type}.pkl'
 
         # Try to load the cached model and its last trained time
         model_fit, last_trained_time = load_cached_model(model_filename)
 
         # If no cached model exists or it needs to be retrained (after 24 hours)
         if model_fit is None or (datetime.now() - last_trained_time).total_seconds() > 86400:
-            # Train the SARIMAX model
-            model = SARIMAX(time_series_data, order=(1, 1, 1), seasonal_order=(1, 1, 1, 24))
-            model_fit = model.fit(disp=False)
+            # Hyperparameter tuning using GridSearchCV
+            param_grid = {
+                'n_estimators': [100, 200],
+                'max_depth': [3, 5, 7],
+                'learning_rate': [0.01, 0.1, 0.2]
+            }
+            model = XGBRegressor(objective='reg:squarederror')
+            grid_search = GridSearchCV(model, param_grid, cv=3, scoring='neg_mean_squared_error')
+            grid_search.fit(X_train, y_train)
+            model_fit = grid_search.best_estimator_
 
             # Cache the trained model to disk, along with the current timestamp
             cache_model(model_fit, model_filename, datetime.now())
 
+        # Step 5: Evaluate the model accuracy on the test set
+        y_pred = model_fit.predict(X_test)
+
+        mae = mean_absolute_error(y_test, y_pred)
+        mse = mean_squared_error(y_test, y_pred)
+        mape = mean_absolute_percentage_error(y_test, y_pred)
+        # Calculate and print accuracy score
+        accuracy_score = 100 - mape * 100
+        print(f"Accuracy Score: {accuracy_score:.2f}%")
+
+        # Log the accuracy metrics
+        print(f"Bin: {bin_name}, Waste Type: {waste_type}")
+        print(f"MAE: {mae:.2f}, MSE: {mse:.2f}, MAPE: {mape:.2%}\n")
+
         # Forecast the next 48 hours
-        forecast = model_fit.get_forecast(steps=hours_to_forecast)
-        forecast_values = forecast.predicted_mean
-
-        # Step 5: Create a forecast for working hours (8 AM to 4 PM)
+        future_dates = []
         last_timestamp = bin_data['timestamp'].max()
-        bin_forecast = []
-
         for day in range(1, (hours_to_forecast // len(working_hours)) + 1):
             for hour in working_hours:
                 future_time = last_timestamp + timedelta(days=day, hours=hour - last_timestamp.hour)
+                future_dates.append({'hour': future_time.hour, 'day_of_week': future_time.dayofweek,
+                                     'day_of_month': future_time.day, 'month': future_time.month, 'lag_1': y.iloc[-1]})
 
-                # Get the forecast value for the corresponding time
-                future_fill_level = forecast_values[
-                    day * len(working_hours) - len(working_hours) + working_hours.index(hour)]
+        future_df = pd.DataFrame(future_dates)
+        forecast_values = model_fit.predict(future_df)
 
-                # Cap the predicted fill level between 0 and 100
-                future_fill_level = min(max(future_fill_level, 0), 100)
+        # Step 6: Create a forecast for working hours (8 AM to 4 PM)
+        bin_forecast = []
+        for i, future_time in enumerate(future_dates):
+            # Cap the predicted fill level between 0 and 100
+            future_fill_level = min(max(forecast_values[i], 0), 100)
 
-                # Store the forecast result with the date and time
-                bin_forecast.append({
-                    'date': future_time.strftime('%Y-%m-%d'),
-                    'time': future_time.strftime('%I:%M %p'),  # Format to HH:MM AM/PM
-                    'predicted_level': future_fill_level
-                })
+            # Store the forecast result with the date and time
+            bin_forecast.append({
+                'date': (last_timestamp + timedelta(days=i // len(working_hours))).strftime('%Y-%m-%d'),
+                'time': f"{future_time['hour']:02d}:00",  # Format to HH:00
+                'predicted_level': float(future_fill_level)
+            })
 
         # Append forecast results for this bin and waste type
         forecast_results.append({
@@ -109,3 +143,4 @@ def two_day_school_hours():
         })
 
     return forecast_results
+
