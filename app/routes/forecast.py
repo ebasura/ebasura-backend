@@ -31,11 +31,12 @@ def two_day_school_hours():
         SELECT bin_fill_levels.*, waste_bins.bin_name, waste_type.name AS waste_type_name 
         FROM bin_fill_levels 
         INNER JOIN waste_bins ON bin_fill_levels.bin_id = waste_bins.bin_id 
-        INNER JOIN waste_type ON waste_type.waste_type_id = bin_fill_levels.waste_type;
+        INNER JOIN waste_type ON waste_type.waste_type_id = bin_fill_levels.waste_type 
+        WHERE bin_fill_levels.timestamp >= CURRENT_TIMESTAMP;
     """
     data = db.fetch(query)  # Fetch data from the database
 
-    # Step 2: Convert fetched data into a DataFrame
+    # Convert fetched data into a DataFrame
     df = pd.DataFrame(data, columns=['bin_id', 'bin_name', 'waste_type_name', 'timestamp', 'fill_level'])
 
     # Convert timestamp to datetime format and fill levels to numeric
@@ -49,10 +50,10 @@ def two_day_school_hours():
     df['month'] = df['timestamp'].dt.month
     df['lag_1'] = df['fill_level'].shift(1).fillna(0)  # Adding a lag feature
 
-    # Step 3: Forecasting fill levels for the next 48 hours (8am to 4pm) and accuracy check
+    # Forecasting fill levels for the next 5 days and accuracy check
     forecast_results = []
-    hours_to_forecast = 48
-    working_hours = list(range(8, 17, 4))  # 8 AM to 4 PM (inclusive)
+    days_to_forecast = 5
+    working_hours = [8, 12, 16]  # 8 AM, 12 PM, 4 PM
 
     # Directory to store cached models
     cache_dir = 'model_cache'
@@ -73,7 +74,7 @@ def two_day_school_hours():
         # Split the data into training and testing sets (80% train, 20% test)
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, shuffle=False)
 
-        # Step 4: Cache handling with 24-hour retraining
+        # Cache handling with 24-hour retraining
         # Define a unique filename for the cached model
         model_filename = f'{cache_dir}/xgboost_model_bin_{bin_id}_waste_{waste_type}.pkl'
 
@@ -96,7 +97,7 @@ def two_day_school_hours():
             # Cache the trained model to disk, along with the current timestamp
             cache_model(model_fit, model_filename, datetime.now())
 
-        # Step 5: Evaluate the model accuracy on the test set
+        # Evaluate the model accuracy on the test set
         y_pred = model_fit.predict(X_test)
 
         mae = mean_absolute_error(y_test, y_pred)
@@ -110,28 +111,40 @@ def two_day_school_hours():
         print(f"Bin: {bin_name}, Waste Type: {waste_type}")
         print(f"MAE: {mae:.2f}, MSE: {mse:.2f}, MAPE: {mape:.2%}\n")
 
-        # Forecast the next 48 hours
+        # Forecast the next 5 days starting from the current date
         future_dates = []
-        last_timestamp = bin_data['timestamp'].max()
-        for day in range(1, (hours_to_forecast // len(working_hours)) + 1):
+        current_date = datetime.now()
+
+        for day_offset in range(1, days_to_forecast + 1):
             for hour in working_hours:
-                future_time = last_timestamp + timedelta(days=day, hours=hour - last_timestamp.hour)
-                future_dates.append({'hour': future_time.hour, 'day_of_week': future_time.dayofweek,
-                                     'day_of_month': future_time.day, 'month': future_time.month, 'lag_1': y.iloc[-1]})
+                future_time = datetime.combine(
+                    (current_date + timedelta(days=day_offset)).date(),
+                    datetime.min.time()
+                ) + timedelta(hours=hour)
+                future_dates.append({
+                    'timestamp': future_time,
+                    'hour': future_time.hour,
+                    'day_of_week': future_time.weekday(),
+                    'day_of_month': future_time.day,
+                    'month': future_time.month,
+                    'lag_1': y.iloc[-1]  # Use the last observed fill level as lag
+                })
 
         future_df = pd.DataFrame(future_dates)
-        forecast_values = model_fit.predict(future_df)
+        future_X = future_df[['hour', 'day_of_week', 'day_of_month', 'month', 'lag_1']]
+        forecast_values = model_fit.predict(future_X)
 
-        # Step 6: Create a forecast for working hours (8 AM to 4 PM)
+        # Create a forecast for working hours
         bin_forecast = []
-        for i, future_time in enumerate(future_dates):
+        for i, future in enumerate(future_dates):
             # Cap the predicted fill level between 0 and 100
             future_fill_level = min(max(forecast_values[i], 0), 100)
 
             # Store the forecast result with the date and time
             bin_forecast.append({
-                'date': (last_timestamp + timedelta(days=i // len(working_hours))).strftime('%Y-%m-%d'),
-                'time': f"{future_time['hour']:02d}:00",  # Format to HH:00
+                'datetime': future['timestamp'].strftime('%Y-%m-%d %H:%M'),
+                'date': future['timestamp'].strftime('%Y-%m-%d'),
+                'time': future['timestamp'].strftime('%H:%M'),
                 'predicted_level': float(future_fill_level)
             })
 
@@ -143,4 +156,3 @@ def two_day_school_hours():
         })
 
     return forecast_results
-
