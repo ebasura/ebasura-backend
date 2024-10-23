@@ -9,7 +9,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_absolute_error, mean_squared_error, mean_absolute_percentage_error
 from app.engine import db
 from sklearn.model_selection import GridSearchCV
-
+from app.engine import db
 
 def cache_model(model, model_filename, last_trained_time):
     # Save the model and the last trained time to disk using pickle
@@ -32,7 +32,6 @@ def two_day_school_hours():
         FROM bin_fill_levels 
         INNER JOIN waste_bins ON bin_fill_levels.bin_id = waste_bins.bin_id 
         INNER JOIN waste_type ON waste_type.waste_type_id = bin_fill_levels.waste_type 
-        WHERE bin_fill_levels.timestamp >= CURRENT_TIMESTAMP;
     """
     data = db.fetch(query)  # Fetch data from the database
 
@@ -53,7 +52,7 @@ def two_day_school_hours():
     # Forecasting fill levels for the next 5 days and accuracy check
     forecast_results = []
     days_to_forecast = 5
-    working_hours = [8, 12, 16]  # 8 AM, 12 PM, 4 PM
+    working_hours = [8, 10, 12, 14, 16] 
 
     # Directory to store cached models
     cache_dir = 'model_cache'
@@ -139,13 +138,19 @@ def two_day_school_hours():
         for i, future in enumerate(future_dates):
             # Cap the predicted fill level between 0 and 100
             future_fill_level = min(max(forecast_values[i], 0), 100)
+            
+            measured_depth = future_fill_level
+
+            filled_height = 75 - measured_depth
+
+            percentage_full = (filled_height / 75) * 100
 
             # Store the forecast result with the date and time
             bin_forecast.append({
                 'datetime': future['timestamp'].strftime('%Y-%m-%d %H:%M'),
                 'date': future['timestamp'].strftime('%Y-%m-%d'),
                 'time': future['timestamp'].strftime('%H:%M'),
-                'predicted_level': float(future_fill_level)
+                'predicted_level': float("{:.2f}".format(percentage_full))
             })
 
         # Append forecast results for this bin and waste type
