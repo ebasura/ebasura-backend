@@ -4,6 +4,9 @@ from app.routes.daily_waste_chart import cas_dash, cbme_dash, cte_dash
 from app.routes.fill_level import fill_level_bp
 from app.engine import db
 from app.routes.forecast import two_day_school_hours
+import threading
+import asyncio
+from check_bin_fill_levels import check_bin_fill_levels
 app = Flask(__name__)
 cas_dash(app)
 cte_dash(app)
@@ -152,5 +155,23 @@ def get_waste_data():
             'error': 'No data found'
         })
 
+# Async function to run the check_bin_fill_levels in a loop
+async def monitor_bins():
+    while True:
+        await check_bin_fill_levels()
+        await asyncio.sleep(3600)  # Wait for 1 hour before running the function again
+
+# Function to start the asyncio event loop in a separate thread
+def start_monitoring():
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(monitor_bins())
+
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    # Start the Flask app in one thread
+    flask_thread = threading.Thread(target=lambda: app.run(host='0.0.0.0', port=5000))
+    flask_thread.start()
+
+    # Start the asynchronous monitoring function in another thread
+    monitoring_thread = threading.Thread(target=start_monitoring)
+    monitoring_thread.start()
