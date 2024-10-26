@@ -7,21 +7,20 @@ from app.routes.forecast import two_day_school_hours
 import threading
 import asyncio
 from check_bin_fill_levels import check_bin_fill_levels
-
 app = Flask(__name__)
-CORS(app, resources={
-    r"/*": {"origins": {"https://ebasura.online", "https://www.ebasura.online", "http://192.168.0.125:8000", "http://localhost"}}
-})
-
-# Register routes and blueprints
 cas_dash(app)
 cte_dash(app)
 cbme_dash(app)
+
+CORS(app, resources={
+    r"/*": {"origins": {"https://ebasura.online", "https://www.ebasura.online", "http://192.168.0.125:8000", "http://localhost"}}})
+
 app.register_blueprint(fill_level_bp)
 
+
 @app.route('/')
-def hello_world():
-    return '', 200
+def hello_world():  # put application's code here
+    return 'Hello World!'
 
 
 @app.route('/api/forecast', methods=['GET'])
@@ -58,51 +57,124 @@ def get_waste_data():
     """
 
     result = db.fetch(query, (year, bin_id))
+    
+    # Initialize a dictionary to store the counts segregated by waste type
     monthly_waste_data = {
-        'Recyclable': [0] * 12,
-        'Non-Recyclable': [0] * 12
+        'Recyclable': [0] * 12,    # Assuming 12 months
+        'Non-Recyclable': [0] * 12  # Assuming 12 months
     }
 
     if result:
         for row in result:
-            month_index = row['month'] - 1
+            month_index = row['month'] - 1  # Convert month to 0-indexed
             waste_type_name = row['waste_type_name']
             count = row['count']
-
+            
+            # Aggregate counts into the appropriate list
             if waste_type_name == 'Recyclable':
                 monthly_waste_data['Recyclable'][month_index] += count
             elif waste_type_name == 'Non-Recyclable':
                 monthly_waste_data['Non-Recyclable'][month_index] += count
 
+        # Prepare the response
         response = {
             'series': [
-                {'name': 'Recyclable', 'data': monthly_waste_data['Recyclable']},
-                {'name': 'Non-Recyclable', 'data': monthly_waste_data['Non-Recyclable']}
+                {
+                    'name': 'Recyclable',
+                    'data': monthly_waste_data['Recyclable']
+                },
+                {
+                    'name': 'Non-Recyclable',
+                    'data': monthly_waste_data['Non-Recyclable']
+                }
             ],
-            # Chart configuration omitted for brevity, same as your original code
+            'chart': {
+                'height': 350,
+                'type': 'line',
+                'dropShadow': {
+                    'enabled': True,
+                    'color': '#000',
+                    'top': 18,
+                    'left': 7,
+                    'blur': 10,
+                    'opacity': 0.2
+                },
+                'zoom': {
+                    'enabled': False
+                },
+                'toolbar': {
+                    'show': False
+                }
+            },
+            'colors': ['#77B6EA', '#545454'],
+            'dataLabels': {
+                'enabled': True,
+            },
+            'stroke': {
+                'curve': 'smooth'
+            },
+            'title': {
+                'text': 'Amount of Waste Segregated',
+                'align': 'left'
+            },
+            'grid': {
+                'borderColor': '#e7e7e7',
+                'row': {
+                    'colors': ['#f3f3f3', 'transparent'], 
+                    'opacity': 0.5
+                },
+            },
+            'markers': {
+                'size': 1
+            },
+            'xaxis': {
+                'categories': ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+                'title': {
+                    'text': 'Month'
+                }
+            },
+            'yaxis': {
+                'title': {
+                    'text': 'Trash Data'
+                },
+                'min': 5,
+                'max': 100
+            },
+            'legend': {
+                'position': 'top',
+                'horizontalAlign': 'right',
+                'floating': True,
+                'offsetY': -25,
+                'offsetX': -5
+            }
         }
 
         return jsonify(response)
     else:
-        return jsonify({'error': 'No data found'})
+        return jsonify({
+            'error': 'No data found'
+        })
 
 @app.route("/run_check", methods=["GET"])
 def run_check():
+    # Run a single check without starting the full monitoring loop
     asyncio.run(check_bin_fill_levels())
     return jsonify({"status": "Single check started"}), 202
 
+# Async function to run the check_bin_fill_levels in a loop
 async def monitor_bins():
     while True:
         await check_bin_fill_levels()
-        await asyncio.sleep(3600)
+        await asyncio.sleep(2)  # Wait for 1 hour before running the function again
 
-def start_monitoring_loop():
-    asyncio.run(monitor_bins())
-
-@app.before_first_request
-def activate_monitoring():
-    monitoring_thread = threading.Thread(target=start_monitoring_loop, daemon=True)
+# Start the monitoring loop in a separate thread at application startup
+def start_background_monitoring():
+    monitoring_thread = threading.Thread(target=lambda: asyncio.run(monitor_bins()), daemon=True)
     monitoring_thread.start()
 
 if __name__ == '__main__':
+    # Start the background monitoring loop
+    start_background_monitoring()
+
+    # Start the Flask application
     app.run(host='0.0.0.0', port=5000, use_reloader=False)
