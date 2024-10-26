@@ -155,6 +155,12 @@ def get_waste_data():
             'error': 'No data found'
         })
 
+@app.route("/run_check", methods=["GET"])
+def run_check():
+    # Run a single check without starting the full monitoring loop
+    asyncio.run(check_bin_fill_levels())
+    return jsonify({"status": "Single check started"}), 202
+
 # Async function to run the check_bin_fill_levels in a loop
 async def monitor_bins():
     while True:
@@ -163,15 +169,17 @@ async def monitor_bins():
 
 # Function to start the asyncio event loop in a separate thread
 def start_monitoring():
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    loop.run_until_complete(monitor_bins())
+    asyncio.run(monitor_bins())  # Simplify by using asyncio.run for the main monitoring loop
 
 if __name__ == '__main__':
     # Start the Flask app in one thread
-    flask_thread = threading.Thread(target=lambda: app.run(host='0.0.0.0', port=5000))
+    flask_thread = threading.Thread(target=lambda: app.run(host='0.0.0.0', port=5000, use_reloader=False))
     flask_thread.start()
 
     # Start the asynchronous monitoring function in another thread
     monitoring_thread = threading.Thread(target=start_monitoring)
     monitoring_thread.start()
+
+    # Join threads to ensure clean exit on program termination
+    flask_thread.join()
+    monitoring_thread.join()
