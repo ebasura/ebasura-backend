@@ -75,7 +75,7 @@ async def check_bin_fill_levels():
                 waste_type_name = None
 
             if bin_name and waste_type_name:
-                message_content = f'{bin_name} Bin, {waste_type_name} Bin is {alert_threshold}% full'
+                message_content = f'{bin_name} Bin, {waste_type_name} Bin is {percentage_full}% full'
 
                 sms_client.send_sms(recipient=recipient_number, message=message_content)
 
