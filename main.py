@@ -159,7 +159,7 @@ def get_waste_data():
 async def monitor_bins():
     while True:
         await check_bin_fill_levels()
-        await asyncio.sleep(3600)  # Wait for 1 hour before running the function again
+        await asyncio.sleep(2)  # Wait for 1 hour before running the function again
 
 # Function to start the asyncio event loop in a separate thread
 def start_monitoring():
