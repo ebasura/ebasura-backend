@@ -35,35 +35,19 @@ def create_dash_app(server, pathname, bin_id):
          Input('interval-component', 'n_intervals')]
     )
     def update_graph(waste_type, n):
-        # SQL query to get the earliest available data date from the database
-        sql_start_date = """
-        SELECT MIN(DATE(waste_data.timestamp)) AS start_date
+        # SQL query to get all available data for the selected waste type and bin_id
+        sql = """
+        SELECT DATE(waste_data.timestamp) AS date, COUNT(waste_data.waste_type_id) as count
         FROM waste_data
         INNER JOIN waste_type ON waste_type.waste_type_id = waste_data.waste_type_id
-        WHERE waste_type.name = %s;
+        INNER JOIN waste_bins ON waste_bins.bin_id = waste_data.bin_id
+        WHERE waste_type.name = %s AND waste_bins.bin_id = %s
+        GROUP BY DATE(waste_data.timestamp)
+        ORDER BY DATE(waste_data.timestamp);
         """
         try:
-            # Fetch the start date from the database
-            result = db.fetch(sql_start_date, (waste_type,))
-            start_date = result[0]['start_date'] if result else datetime.now().date()
-
-            # Get the current date
-            today = datetime.now().date()
-
-            # SQL query to get the waste data, grouping by day from the start date to today
-            sql = """
-           SELECT DATE(waste_data.timestamp) AS date, COUNT(waste_data.waste_type_id) as count
-            FROM waste_data
-            INNER JOIN waste_type ON waste_type.waste_type_id = waste_data.waste_type_id
-            INNER JOIN waste_bins ON waste_bins.bin_id = waste_data.bin_id
-            WHERE waste_type.name = %s AND waste_bins.bin_id = %s
-            AND waste_data.timestamp BETWEEN %s AND %s
-            GROUP BY DATE(waste_data.timestamp)
-            ORDER BY DATE(waste_data.timestamp);
-            """
-
-            # Fetch the data from the database for the range from start date to today
-            rows = db.fetch(sql, (waste_type, bin_id, start_date, today))
+            # Fetch all data from the database for the specified bin and waste type
+            rows = db.fetch(sql, (waste_type, bin_id))
 
             # If no data returned, handle empty data gracefully
             if not rows:
@@ -72,11 +56,8 @@ def create_dash_app(server, pathname, bin_id):
             # Convert rows to a DataFrame
             df = pd.DataFrame(rows, columns=['date', 'count'])
 
-            # Filter the data up to the current day + n_intervals (making it progressive)
-            current_date_range = df[df['date'] <= start_date + timedelta(days=n)]
-
             # Create a time series line chart with the fetched data (waste per day)
-            fig = px.line(current_date_range, x='date', y='count', title=f'Waste Data per Day for {waste_type}')
+            fig = px.line(df, x='date', y='count', title=f'Waste Data per Day for {waste_type}')
             fig.update_layout(
                 xaxis_title='Date',
                 yaxis_title='Waste Count',
