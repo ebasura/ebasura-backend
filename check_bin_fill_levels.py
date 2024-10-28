@@ -28,7 +28,7 @@ async def check_bin_fill_levels():
         waste_type = bin['waste_type']
 
         # Query the last 50 fill levels for the specific bin_id and waste_type
-        query = f"SELECT fill_level FROM bin_fill_levels WHERE bin_id = {bin_id} AND waste_type = {waste_type} ORDER BY record_id DESC LIMIT 50;"
+        query = f"SELECT fill_level FROM bin_fill_levels WHERE bin_id = {bin_id} AND waste_type = {waste_type} ORDER BY record_id DESC LIMIT 10;"
         results = db.fetch(query)
 
         if not results:

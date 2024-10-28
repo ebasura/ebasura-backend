@@ -11,10 +11,10 @@ db = Database(
 def fetch_waste_bin_levels(bin_id):
     global db
     sql = """
-    SELECT * 
-    FROM waste_level
-    INNER JOIN waste_type ON waste_type.waste_type_id = waste_level.waste_type_id
-    WHERE waste_level.bin_id = %s
+    SELECT * FROM bin_fill_levels 
+    INNER JOIN waste_type ON waste_type.waste_type_id = bin_fill_levels.waste_type 
+    WHERE bin_fill_levels.bin_id = %s ORDER BY record_id DESC LIMIT 10;
+
     """
     args = (bin_id,)
     rows = db.fetch(sql, args)
