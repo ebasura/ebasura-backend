@@ -1,6 +1,7 @@
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from app.routes.daily_waste_chart import cas_dash, cbme_dash, cte_dash
+from app.routes.dash_forecast import create_dash_forecast
 from app.routes.fill_level import fill_level_bp
 from app.engine import db
 from app.routes.forecast import two_day_school_hours
@@ -11,6 +12,8 @@ app = Flask(__name__)
 cas_dash(app)
 cte_dash(app)
 cbme_dash(app)
+create_dash_forecast(app, '/api/forecast/')
+
 
 CORS(app, resources={
     r"/*": {"origins": {"https://ebasura.online", "https://www.ebasura.online", "http://192.168.0.125:8000", "http://localhost"}}})
@@ -22,11 +25,6 @@ app.register_blueprint(fill_level_bp)
 def hello_world():  # put application's code here
     return 'Hello World!'
 
-
-@app.route('/api/forecast', methods=['GET'])
-def get_forecast():
-    data = two_day_school_hours()
-    return jsonify(data)
 
 @app.route('/api/getWasteData', methods=['GET'])
 def get_waste_data():
