@@ -199,7 +199,6 @@ def create_dash_forecast(server, pathname):
     app = dash.Dash(__name__, server=server, url_base_pathname=pathname)
 
     app.layout = html.Div([
-        html.H1("Waste Fill Level Forecast Dashboard"),
         dcc.Dropdown(
             id='bin-selector',
             options=[{'label': res['bin_name'], 'value': bin_id} for bin_id, res in forecast_results.items()],
