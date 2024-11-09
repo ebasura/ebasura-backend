@@ -26,6 +26,11 @@ def hello_world():  # put application's code here
     return 'Hello World!'
 
 
+@app.route('/api/forecast-data')
+def forecast_data():
+    data = two_day_school_hours()
+    return jsonify(data)
+
 @app.route('/api/getWasteData', methods=['GET'])
 def get_waste_data():
     year = request.args.get('year')
