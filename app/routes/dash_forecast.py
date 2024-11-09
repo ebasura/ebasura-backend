@@ -205,16 +205,31 @@ def create_dash_forecast(server, pathname):
             value=list(forecast_results.keys())[0] if forecast_results else None,
             placeholder="Select a Bin to View Forecast"
         ),
+        dcc.Interval(
+            id='interval-component',
+            interval=24*60*60*1000,  # Interval set to 24 hours in milliseconds
+            n_intervals=0
+        ),
         dcc.Graph(id='forecast-graph'),
+        dcc.Checklist(
+    id='force-update',
+    options=[{'label': 'Force Update Model', 'value': 'update'}],
+    value=[]
+),
         html.Div(id='debug-output')  # Debug output to display messages
     ])
 
+ 
     @app.callback(
         [Output('forecast-graph', 'figure'),
         Output('debug-output', 'children')],
-        [Input('bin-selector', 'value')]
+        [Input('bin-selector', 'value'),
+        Input('interval-component', 'n_intervals')]
     )
-    def update_graph(selected_bin_id):
+    def update_graph(selected_bin_id, n_intervals):
+        # Run model retraining function every 24 hours
+        forecast_results = two_day_school_hours()
+
         if selected_bin_id is None or selected_bin_id not in forecast_results:
             return go.Figure(), "Please select a valid bin from the dropdown."
 
