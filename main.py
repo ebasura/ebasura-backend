@@ -16,13 +16,13 @@ create_dash_forecast(app, '/api/forecast/')
 
 
 CORS(app, resources={
-    r"/*": {"origins": {"https://ebasura.online", "https://www.ebasura.online", "http://192.168.0.125:8000", "http://localhost"}}})
+    r"/*": {"origins": {"https://ebasura.online", "https://www.ebasura.online", "http://localhost"}}})
 
 app.register_blueprint(fill_level_bp)
 
 
 @app.route('/')
-def hello_world():  # put application's code here
+def hello_world():  
     return 'Hello World!'
 
 
@@ -61,19 +61,17 @@ def get_waste_data():
 
     result = db.fetch(query, (year, bin_id))
     
-    # Initialize a dictionary to store the counts segregated by waste type
     monthly_waste_data = {
-        'Recyclable': [0] * 12,    # Assuming 12 months
-        'Non-Recyclable': [0] * 12  # Assuming 12 months
+        'Recyclable': [0] * 12,   
+        'Non-Recyclable': [0] * 12 
     }
 
     if result:
         for row in result:
-            month_index = row['month'] - 1  # Convert month to 0-indexed
+            month_index = row['month'] - 1 
             waste_type_name = row['waste_type_name']
             count = row['count']
             
-            # Aggregate counts into the appropriate list
             if waste_type_name == 'Recyclable':
                 monthly_waste_data['Recyclable'][month_index] += count
             elif waste_type_name == 'Non-Recyclable':
@@ -160,24 +158,19 @@ def get_waste_data():
 
 @app.route("/run_check", methods=["GET"])
 def run_check():
-    # Run a single check without starting the full monitoring loop
     asyncio.run(check_bin_fill_levels())
     return jsonify({"status": "Single check started"}), 202
 
-# Async function to run the check_bin_fill_levels in a loop
 async def monitor_bins():
     while True:
         await check_bin_fill_levels()
-        await asyncio.sleep(2)  # Wait for 1 hour before running the function again
+        await asyncio.sleep(10) 
 
-# Start the monitoring loop in a separate thread at application startup
 def start_background_monitoring():
     monitoring_thread = threading.Thread(target=lambda: asyncio.run(monitor_bins()), daemon=True)
     monitoring_thread.start()
 
 if __name__ == '__main__':
-    # Start the background monitoring loop
     start_background_monitoring()
 
-    # Start the Flask application
     app.run(host='0.0.0.0', port=5000, use_reloader=False)

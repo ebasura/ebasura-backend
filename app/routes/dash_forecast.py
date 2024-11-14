@@ -15,16 +15,13 @@ from dash import dcc, html
 from dash.dependencies import Input, Output
 import logging
 
-# Configure logging
 logging.basicConfig(level=logging.INFO)
 
 def cache_model(model, model_filename, last_trained_time):
-    # Save the model and the last trained time to disk using pickle
     with open(model_filename, 'wb') as file:
         pickle.dump({'model': model, 'last_trained_time': last_trained_time}, file, protocol=pickle.HIGHEST_PROTOCOL)
 
 def load_cached_model(model_filename):
-    # Load the model and last trained time from disk if it exists
     if os.path.exists(model_filename):
         with open(model_filename, 'rb') as file:
             cached_data = pickle.load(file)
@@ -39,7 +36,7 @@ def two_day_school_hours():
         INNER JOIN waste_type ON waste_type.waste_type_id = bin_fill_levels.waste_type 
     """
     try:
-        data = db.fetch(query)  # Fetch data from the database
+        data = db.fetch(query) 
     except Exception as e:
         logging.error(f"Error fetching data from database: {e}")
         return []
