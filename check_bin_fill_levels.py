@@ -38,7 +38,7 @@ async def check_bin_fill_levels():
         measured_depth = statistics.median(fill_levels)
 
         filled_height = 75 - measured_depth
-        percentage_full = (filled_height / 75) * 100
+        percentage_full = round((filled_height / 75) * 100, 2)
 
         # Check for recent alerts (within the last hour) in waste_alerts
         one_hour_ago = datetime.now() - timedelta(hours=1)
