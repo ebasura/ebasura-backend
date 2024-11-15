@@ -1,4 +1,3 @@
-# check_bin_fill_levels.py
 from app.engine.PhilSMSClient import PhilSMSClient
 from app.engine import db  
 import statistics
@@ -51,28 +50,12 @@ async def check_bin_fill_levels():
 
         # Only proceed if no recent alert has been sent in the past hour
         if percentage_full > alert_threshold and not recent_alert:
-            # Determine bin and waste type names
-            if bin_id == 1 and waste_type == 1:
-                bin_name = 'CAS'
-                waste_type_name = 'Recyclable'
-            elif bin_id == 2 and waste_type == 1:
-                bin_name = 'CTE'
-                waste_type_name = 'Recyclable'
-            elif bin_id == 3 and waste_type == 1:
-                bin_name = 'CBME'
-                waste_type_name = 'Recyclable'
-            elif bin_id == 1 and waste_type == 2:
-                bin_name = 'CAS'
-                waste_type_name = 'Non-Recyclable'
-            elif bin_id == 2 and waste_type == 2:
-                bin_name = 'CTE'
-                waste_type_name = 'Non-Recyclable'
-            elif bin_id == 3 and waste_type == 2:
-                bin_name = 'CBME'
-                waste_type_name = 'Non-Recyclable'
-            else:
-                bin_name = None
-                waste_type_name = None
+            # Dynamically fetch bin and waste type names from the database
+            bin_name_query = "SELECT bin_name FROM bins WHERE bin_id = %s;"
+            bin_name = db.fetch_one(bin_name_query, (bin_id,))['bin_name']
+
+            waste_type_name_query = "SELECT waste_type_name FROM waste_types WHERE waste_type_id = %s;"
+            waste_type_name = db.fetch_one(waste_type_name_query, (waste_type,))['waste_type_name']
 
             if bin_name and waste_type_name:
                 message_content = f'{bin_name} Bin, {waste_type_name} Bin is {percentage_full}% full'
@@ -89,6 +72,3 @@ async def check_bin_fill_levels():
                 print(f"Alert sent for Bin {bin_name} ({waste_type_name}).")
         else:
             print(f"Bin {bin_id} (Waste Type {waste_type}): No alert sent, fill level at {percentage_full:.2f}% or recent alert found.")
-
-# Example execution
-# asyncio.run(check_bin_fill_levels())
