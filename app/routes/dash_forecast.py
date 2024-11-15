@@ -17,6 +17,8 @@ import logging
 
 logging.basicConfig(level=logging.INFO)
 
+initial_depth = float(db.fetch_one("SELECT setting_value FROM system_settings WHERE setting_name = 'initial_depth';")['setting_value'])
+
 def cache_model(model, model_filename, last_trained_time):
     with open(model_filename, 'wb') as file:
         pickle.dump({'model': model, 'last_trained_time': last_trained_time}, file, protocol=pickle.HIGHEST_PROTOCOL)
@@ -163,11 +165,11 @@ def two_day_school_hours():
         for i, future in enumerate(future_dates):
             # Cap the predicted fill level between 0 and 100
             future_fill_level = min(max(forecast_values[i], 0), 100)
-            
-            # Assuming a fixed bin depth of 75 units
-            filled_height = 75 - future_fill_level
 
-            percentage_full = (filled_height / 75) * 100
+            # Assuming a fixed bin depth of 75 units
+            filled_height = initial_depth - future_fill_level
+
+            percentage_full = (filled_height / initial_depth) * 100
 
             # Store the forecast result with the date and time
             bin_forecast.append({

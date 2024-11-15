@@ -17,6 +17,7 @@ async def check_bin_fill_levels():
     # Retrieve alert threshold and recipient number from system_settings
     alert_threshold = int(db.fetch_one("SELECT setting_value FROM system_settings WHERE setting_name = 'alert_threshold';")['setting_value'])
     recipient_number = db.fetch_one("SELECT setting_value FROM system_settings WHERE setting_name = 'sms_receiver';")['setting_value']
+    initial_depth = float(db.fetch_one("SELECT setting_value FROM system_settings WHERE setting_name = 'initial_depth';")['setting_value'])
 
     # Get unique bin and waste type combinations
     unique_bins_query = "SELECT DISTINCT bin_id, waste_type FROM bin_fill_levels;"
@@ -35,9 +36,11 @@ async def check_bin_fill_levels():
 
         fill_levels = [record['fill_level'] for record in results]
         measured_depth = statistics.median(fill_levels)
+        measured_depth = float(measured_depth)
 
-        filled_height = 75 - measured_depth
-        percentage_full = round((filled_height / 75) * 100, 2)
+
+        filled_height = initial_depth - measured_depth
+        percentage_full = round((filled_height / initial_depth) * 100, 2)
 
         # Check for recent alerts (within the last hour) in waste_alerts
         one_hour_ago = datetime.now() - timedelta(hours=1)

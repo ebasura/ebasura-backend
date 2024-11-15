@@ -11,6 +11,8 @@ from app.engine import db
 from sklearn.model_selection import GridSearchCV
 from app.engine import db
 
+initial_depth = float(db.fetch_one("SELECT setting_value FROM system_settings WHERE setting_name = 'initial_depth';")['setting_value'])
+
 def cache_model(model, model_filename, last_trained_time):
     # Save the model and the last trained time to disk using pickle
     with open(model_filename, 'wb') as file:
@@ -140,10 +142,11 @@ def two_day_school_hours():
             future_fill_level = min(max(forecast_values[i], 0), 100)
             
             measured_depth = future_fill_level
+            measured_depth = float(measured_depth)
 
-            filled_height = 75 - measured_depth
+            filled_height = initial_depth - measured_depth
 
-            percentage_full = (filled_height / 75) * 100
+            percentage_full = (filled_height / initial_depth) * 100
 
             # Store the forecast result with the date and time
             bin_forecast.append({
