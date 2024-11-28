@@ -145,7 +145,6 @@ def two_day_school_hours():
             measured_depth = float(measured_depth)
 
             filled_height = initial_depth - measured_depth
-
             percentage_full = (filled_height / initial_depth) * 100
 
             # Store the forecast result with the date and time
