@@ -54,11 +54,11 @@ async def check_bin_fill_levels():
         # Only proceed if no recent alert has been sent in the past hour
         if percentage_full > alert_threshold and not recent_alert:
             # Dynamically fetch bin and waste type names from the database
-            bin_name_query = "SELECT bin_name FROM bins WHERE bin_id = %s;"
+            bin_name_query = "SELECT bin_name FROM waste_bins WHERE bin_id = %s;"
             bin_name = db.fetch_one(bin_name_query, (bin_id,))['bin_name']
 
-            waste_type_name_query = "SELECT waste_type_name FROM waste_types WHERE waste_type_id = %s;"
-            waste_type_name = db.fetch_one(waste_type_name_query, (waste_type,))['waste_type_name']
+            waste_type_name_query = "SELECT name FROM waste_type WHERE waste_type_id = %s;"
+            waste_type_name = db.fetch_one(waste_type_name_query, (waste_type,))['name']
 
             if bin_name and waste_type_name:
                 message_content = f'{bin_name} Bin, {waste_type_name} Bin is {percentage_full}% full'
