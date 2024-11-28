@@ -1,33 +1,34 @@
 import os
 import pickle
-import time
 from datetime import timedelta, datetime
 import pandas as pd
 import numpy as np
 from xgboost import XGBRegressor
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.metrics import mean_absolute_error, mean_squared_error, mean_absolute_percentage_error
 from app.engine import db
-from sklearn.model_selection import GridSearchCV
-from app.engine import db
+import logging
 
+logging.basicConfig(level=logging.INFO)
+
+# Fetch the initial depth setting from the database
 initial_depth = float(db.fetch_one("SELECT setting_value FROM system_settings WHERE setting_name = 'initial_depth';")['setting_value'])
 
+# Cache management functions
 def cache_model(model, model_filename, last_trained_time):
-    # Save the model and the last trained time to disk using pickle
+    """Cache the trained model and last trained time."""
     with open(model_filename, 'wb') as file:
         pickle.dump({'model': model, 'last_trained_time': last_trained_time}, file, protocol=pickle.HIGHEST_PROTOCOL)
 
-
 def load_cached_model(model_filename):
-    # Load the model and last trained time from disk if it exists
+    """Load the cached model and its last trained time."""
     if os.path.exists(model_filename):
         with open(model_filename, 'rb') as file:
             cached_data = pickle.load(file)
             return cached_data['model'], cached_data['last_trained_time']
     return None, None
 
-
+# Function for data preprocessing, model training, and forecasting
 def two_day_school_hours():
     query = """
         SELECT bin_fill_levels.*, waste_bins.bin_name, waste_type.name AS waste_type_name 
@@ -39,6 +40,11 @@ def two_day_school_hours():
 
     # Convert fetched data into a DataFrame
     df = pd.DataFrame(data, columns=['bin_id', 'bin_name', 'waste_type_name', 'timestamp', 'fill_level'])
+    
+    # Check if the data is empty
+    if df.empty:
+        logging.warning("The fetched data is empty. Please check the database query.")
+        return []
 
     # Convert timestamp to datetime format and fill levels to numeric
     df['timestamp'] = pd.to_datetime(df['timestamp'])
@@ -54,7 +60,7 @@ def two_day_school_hours():
     # Forecasting fill levels for the next 5 days and accuracy check
     forecast_results = []
     days_to_forecast = 5
-    working_hours = [8, 10, 12, 14, 16] 
+    working_hours = [8, 10, 12, 14, 16]  # Forecast only for working hours
 
     # Directory to store cached models
     cache_dir = 'model_cache'
@@ -106,11 +112,11 @@ def two_day_school_hours():
         mape = mean_absolute_percentage_error(y_test, y_pred)
         # Calculate and print accuracy score
         accuracy_score = 100 - mape * 100
-        print(f"Accuracy Score: {accuracy_score:.2f}%")
+        logging.info(f"Accuracy Score: {accuracy_score:.2f}%")
 
         # Log the accuracy metrics
-        print(f"Bin: {bin_name}, Waste Type: {waste_type}")
-        print(f"MAE: {mae:.2f}, MSE: {mse:.2f}, MAPE: {mape:.2%}\n")
+        logging.info(f"Bin: {bin_name}, Waste Type: {waste_type}")
+        logging.info(f"MAE: {mae:.2f}, MSE: {mse:.2f}, MAPE: {mape:.2%}\n")
 
         # Forecast the next 5 days starting from the current date
         future_dates = []
@@ -140,7 +146,7 @@ def two_day_school_hours():
         for i, future in enumerate(future_dates):
             # Cap the predicted fill level between 0 and 100
             future_fill_level = min(max(forecast_values[i], 0), 100)
-            
+
             measured_depth = future_fill_level
             measured_depth = float(measured_depth)
 
