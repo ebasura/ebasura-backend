@@ -10,8 +10,8 @@ def gauge(waste_type=None):
         data = fetch_waste_bin_levels(waste_type)
 
         # Calculate median fill level for recyclable and non-recyclable bins
-        recyclable_levels = [item['fill_level'] for item in data if item['name'] == 'Recyclable']
-        non_recyclable_levels = [item['fill_level'] for item in data if item['name'] == 'Non-Recyclable']
+        recyclable_levels = [item['current_fill_level'] for item in data if item['name'] == 'Recyclable']
+        non_recyclable_levels = [item['current_fill_level'] for item in data if item['name'] == 'Non-Recyclable']
 
         recyclable_median = int(np.median(recyclable_levels)) if recyclable_levels else 0
         non_recyclable_median = int(np.median(non_recyclable_levels)) if non_recyclable_levels else 0
