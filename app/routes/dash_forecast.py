@@ -17,10 +17,8 @@ import logging
 
 logging.basicConfig(level=logging.INFO)
 
-# Fetch the initial depth setting from the database
 initial_depth = float(db.fetch_one("SELECT setting_value FROM system_settings WHERE setting_name = 'initial_depth';")['setting_value'])
 
-# Cache management functions
 def cache_model(model, model_filename, last_trained_time):
     with open(model_filename, 'wb') as file:
         pickle.dump({'model': model, 'last_trained_time': last_trained_time}, file, protocol=pickle.HIGHEST_PROTOCOL)
@@ -32,7 +30,6 @@ def load_cached_model(model_filename):
             return cached_data['model'], cached_data['last_trained_time']
     return None, None
 
-# Data fetching and feature engineering
 def two_day_school_hours():
     query = """
         SELECT bin_fill_levels.*, waste_bins.bin_name, waste_type.name AS waste_type_name 
@@ -64,7 +61,7 @@ def two_day_school_hours():
 
     forecast_results = {}
     days_to_forecast = 5
-    all_hours = list(range(24))  # Forecast for all hours of the day (0 to 23)
+    all_hours = list(range(24)) 
 
     cache_dir = 'model_cache'
     os.makedirs(cache_dir, exist_ok=True)
@@ -125,7 +122,7 @@ def two_day_school_hours():
                     'day_of_week': future_time.weekday(),
                     'day_of_month': future_time.day,
                     'month': future_time.month,
-                    'lag_1': y.iloc[-1]  # Use the last observed fill level as lag
+                    'lag_1': y.iloc[-1] 
                 })
 
         future_df = pd.DataFrame(future_dates)
@@ -231,7 +228,7 @@ def create_dash_forecast(server, pathname):
             hovermode='x unified',
             template="plotly_white",  
             font=dict(family="Arial, sans-serif", size=14),
-            margin=dict(l=40, r=40, t=60, b=40),  # Padding for readability
+            margin=dict(l=40, r=40, t=60, b=40), 
             plot_bgcolor="#f9f9f9",
             paper_bgcolor="#f4f4f4"
         )
